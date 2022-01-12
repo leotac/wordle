@@ -1,6 +1,5 @@
 from string import ascii_lowercase
 import numpy as np
-from functools import cache
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
@@ -11,8 +10,6 @@ LETTERS = {i:c for i,c in enumerate(ascii_lowercase)}
 LETTERS[None] = "_"
 C2I = {c:i for i,c in enumerate(ascii_lowercase)}
 C2I["_"] = None
-#SOL_NP = encode(SOLUTIONS)
-#NONSOL_NP = encode(NONSOLUTIONS)
 VERBOSE = True
 
 def encode(word):
@@ -64,11 +61,6 @@ def compute_response(word, target):
         else:
             response[i] = "💩"
     return "".join(response)
-
-assert compute_response("rrrru","rippr") == "🔥👀💩💩💩"
-assert compute_response("meaow","poops") == "💩💩💩👀💩"
-assert compute_response("rrrru","urrrr") == "👀🔥🔥🔥👀"
-assert compute_response("urrrr","rippr") == "💩👀💩💩🔥"
    
 def iterate(initial="soare", target=None, hard=True):
     sols = encode(SOLUTIONS)
@@ -183,3 +175,26 @@ def search(word, response, solutions):
 
     return solutions
 
+assert compute_response("rrrru","rippr") == "🔥👀💩💩💩"
+assert compute_response("meaow","poops") == "💩💩💩👀💩"
+assert compute_response("rrrru","urrrr") == "👀🔥🔥🔥👀"
+assert compute_response("urrrr","rippr") == "💩👀💩💩🔥"
+
+
+def generate_rankings():
+    rankings = rank_next_word()
+    json.dump(rankings, "rankings.json")
+
+def generate_results(init=None):
+
+    if not init:
+        rankings = json.load(open("rankings.json"))
+        init = min(rankings)[2]
+
+    results = []
+    for t in tqdm(SOLUTIONS):
+        ret, it = run.iterate(init, t, hard=False)
+        results.append((t,ret,it))
+        avg, worst = sum(x[2] for x in results)/len(results), max(x[2] for x in results)
+        print(f"Last: {it}, avg steps: {avg}, worst: {worst}")
+    json.dump(results, "results.json")
