@@ -11,12 +11,15 @@ LETTERS = {i:c for i,c in enumerate(ascii_lowercase)}
 LETTERS[None] = "_"
 C2I = {c:i for i,c in enumerate(ascii_lowercase)}
 C2I["_"] = None
-SOL_NP = np.array([[C2I[c] for c in w] for w in SOLUTIONS])
-NONSOL_NP = np.array([[C2I[c] for c in w] for w in NONSOLUTIONS])
+#SOL_NP = encode(SOLUTIONS)
+#NONSOL_NP = encode(NONSOLUTIONS)
 VERBOSE = True
 
 def encode(word):
-    return [C2I[c] for c in word]
+    if isinstance(word, str):
+        return [C2I[c] for c in word]
+    else:
+        return np.array([encode(w) for w in word])
 
 def decode(x):
     if isinstance(x, np.ndarray):
@@ -68,8 +71,8 @@ assert compute_response("rrrru","urrrr") == "👀🔥🔥🔥👀"
 assert compute_response("urrrr","rippr") == "💩👀💩💩🔥"
    
 def iterate(initial="soare", target=None, hard=True):
-    sols = SOL_NP
-    nonsols = NONSOL_NP
+    sols = encode(SOLUTIONS)
+    nonsols = encode(NONSOLUTIONS)
 
     guesses = []
     if VERBOSE: print("Starting with:", initial)
@@ -80,17 +83,18 @@ def iterate(initial="soare", target=None, hard=True):
                 valid_inputs = set(decode(nonsols)) | set(decode(sols))
             else:
                 valid_inputs = SOLUTIONS | NONSOLUTIONS - set(guesses)
-            valid_sols = set(decode(sols))
-            ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1),x[1],x[2]))
-            #ranked = sorted(rank_next_word(set(decode(sols)), set(decode(nonsols))))
+            valid_sols = decode(sols)
+            # Rankings: mean, worst-case, is-nonsolution
+            ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1), x[1], x[2]))
             for r in ranked:
-                # Find the one that is closest to 1.0 (it means there is exactly one possible solution for any target word!)
+                # Find the smallest on average, but larger than 0
+                # one that is closest to 1.0 (it means there is exactly one possible solution for any target word!)
                 # If same score, choose a potential solution.
                 if r[0] > 0:
                     best = r
                     break
             if VERBOSE: print("Best overall ranked word:", best[-1], "with", best[0], "remaining solutions, on average")
-            #Print em all
+            #Print 'em all
             if VERBOSE and len(ranked) < 50:
                 for r in ranked:
                     print(r, not r[1])
@@ -128,16 +132,16 @@ def iterate(initial="soare", target=None, hard=True):
         if VERBOSE: print(f"Boo! Couldn't find the solution {target} in {i} attempts")
         return False, i
 
-def get_score(word, solutions, sols):
+def get_score(word, solutions_np):
     outcomes = []
     cache = dict()
-    for target in solutions:
-        if word == target:
+    for target in solutions_np:
+        if word == decode(target):
             outcomes.append(1)
         else:
-            response = compute_response(word, target)
+            response = compute_response(word, decode(target))
             if (word,response) not in cache:
-                cache[word,response]  = len(search(encode(word), response, sols))
+                cache[word,response]  = len(search(encode(word), response, solutions_np))
             outcomes.append(cache[word,response])
 
     nonsolution = word not in SOLUTIONS
@@ -148,27 +152,17 @@ def get_score(word, solutions, sols):
 def rank_next_word(solutions=SOLUTIONS, inputs=NONSOLUTIONS|SOLUTIONS):
     """ Compute a ranking of all possible remaining words, as the average size of search space
     if you choose that word (averaged across all possible valid solutions)."""
-    sols = np.array([[C2I[c] for c in w] for w in solutions])
+    solutions = encode(solutions)
     inputs = list(inputs)
     if len(inputs) < 500:
-        max_workers = 1
+        rankings = [get_score(word, solutions) for word in tqdm(inputs)]
     else:
         max_workers = None
-    rankings = process_map(get_score, inputs, [solutions]*len(inputs), [sols]*len(inputs), chunksize=1, max_workers=max_workers)
+        rankings = process_map(get_score, inputs, [solutions]*len(inputs), chunksize=30, max_workers=max_workers)
     return rankings
 
-#def search_space_reduction(word, target, solutions):
-#    """ Return size of search space, given *known target*, after guessing 'word' """
-#    if word == target:
-#        return 1
-#
-#    response = compute_response(word, target)
-#    target = encode(target)
-#    word = encode(word)
-#    
-#    return len(search(word, response, solutions))
-
 def search(word, response, solutions):
+    """Works on encoded vectors"""
     notfire = []
     feedback = dict()
     for i,(c,s) in enumerate(zip(word, response)):
