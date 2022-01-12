@@ -67,15 +67,21 @@ assert compute_response("meaow","poops") == "💩💩💩👀💩"
 assert compute_response("rrrru","urrrr") == "👀🔥🔥🔥👀"
 assert compute_response("urrrr","rippr") == "💩👀💩💩🔥"
    
-def iterate(initial="soare", target=None):
+def iterate(initial="soare", target=None, hard=True):
     sols = SOL_NP
     nonsols = NONSOL_NP
 
+    guesses = []
     if VERBOSE: print("Starting with:", initial)
     for i in range(1,10):
         if VERBOSE: print("Iteration:", i)
         if i > 1:
-            ranked = sorted(rank_next_word(set(decode(sols)), set(decode(nonsols))), key=lambda x: (abs(x[0]-1),x[1],x[2]))
+            if hard:
+                valid_inputs = set(decode(nonsols)) | set(decode(sols))
+            else:
+                valid_inputs = SOLUTIONS | NONSOLUTIONS - set(guesses)
+            valid_sols = set(decode(sols))
+            ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1),x[1],x[2]))
             #ranked = sorted(rank_next_word(set(decode(sols)), set(decode(nonsols))))
             for r in ranked:
                 # Find the one that is closest to 1.0 (it means there is exactly one possible solution for any target word!)
@@ -98,6 +104,7 @@ def iterate(initial="soare", target=None):
         else:
             input_word = suggested
             response = compute_response(input_word, target)
+        guesses.append(input_word)
         if VERBOSE: print("Oracle response:", response)
         # compute remaining words
         sols = search(encode(input_word), response, sols)
@@ -138,16 +145,16 @@ def get_score(word, solutions, sols):
     worst = np.max(outcomes) #worst case
     return mean, worst, nonsolution, word
 
-def rank_next_word(solutions=SOLUTIONS, nonsolutions=NONSOLUTIONS):
+def rank_next_word(solutions=SOLUTIONS, inputs=NONSOLUTIONS|SOLUTIONS):
     """ Compute a ranking of all possible remaining words, as the average size of search space
     if you choose that word (averaged across all possible valid solutions)."""
     sols = np.array([[C2I[c] for c in w] for w in solutions])
-    words = list(solutions | nonsolutions)
-    if len(words) < 500:
+    inputs = list(inputs)
+    if len(inputs) < 500:
         max_workers = 1
     else:
         max_workers = None
-    rankings = process_map(get_score, words, [solutions]*len(words), [sols]*len(words), chunksize=1, max_workers=max_workers)
+    rankings = process_map(get_score, inputs, [solutions]*len(inputs), [sols]*len(inputs), chunksize=1, max_workers=max_workers)
     return rankings
 
 #def search_space_reduction(word, target, solutions):
