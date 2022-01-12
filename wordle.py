@@ -5,7 +5,7 @@ from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 
 SOLUTIONS = set([w.strip('"') for w in open("solutions.txt").read().replace(" ","").split(",")])
-NONSOLUTIONS = set() #[w.strip('"') for w in open("nonsolutions.txt").read().replace(" ","").split(",")])
+NONSOLUTIONS = set([w.strip('"') for w in open("nonsolutions.txt").read().replace(" ","").split(",")])
 
 LETTERS = {i:c for i,c in enumerate(ascii_lowercase)}
 LETTERS[None] = "_"
