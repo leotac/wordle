@@ -2,6 +2,7 @@ from string import ascii_lowercase
 import numpy as np
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
+import json
 
 SOLUTIONS = set([w.strip('"') for w in open("solutions.txt").read().replace(" ","").split(",")])
 NONSOLUTIONS = set([w.strip('"') for w in open("nonsolutions.txt").read().replace(" ","").split(",")])
@@ -62,30 +63,25 @@ def compute_response(word, target):
             response[i] = "💩"
     return "".join(response)
    
-def iterate(initial="soare", target=None, hard=True):
-    sols = encode(SOLUTIONS)
-    nonsols = encode(NONSOLUTIONS)
+def iterate(initial="soare", target=None, hard=True, criterion = "min", extra_inputs=NONSOLUTIONS):
+    valid_sols = SOLUTIONS
+    valid_inputs = SOLUTIONS | extra_inputs
 
     guesses = []
     if VERBOSE: print("Starting with:", initial)
     for i in range(1,10):
         if VERBOSE: print("Iteration:", i)
         if i > 1:
-            if hard:
-                valid_inputs = set(decode(nonsols)) | set(decode(sols))
-            else:
-                valid_inputs = SOLUTIONS | NONSOLUTIONS - set(guesses)
-            valid_sols = decode(sols)
-            # Rankings: mean, worst-case, is-nonsolution
-            ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1), x[1], x[2]))
-            for r in ranked:
-                # Find the smallest on average, but larger than 0
-                # one that is closest to 1.0 (it means there is exactly one possible solution for any target word!)
-                # If same score, choose a potential solution.
-                if r[0] > 0:
-                    best = r
-                    break
-            if VERBOSE: print("Best overall ranked word:", best[-1], "with", best[0], "remaining solutions, on average")
+            #valid_sols = decode(sols)
+            # Rank by (lexic): smallest mean, smallest worst-case, is a solution
+            if criterion == "min":
+                ranked = sorted(x for x in rank_next_word(valid_sols, valid_inputs) if x[0] > 0)
+            elif criterion == "one":
+                ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1), x[1], x[2]))
+            elif criterion == "worst":
+                ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (x[1], x[0], x[2]))
+            best = min(ranked)
+            if VERBOSE: print("Best overall ranked word:", best, "with criterion", criterion)
             #Print 'em all
             if VERBOSE and len(ranked) < 50:
                 for r in ranked:
@@ -102,15 +98,24 @@ def iterate(initial="soare", target=None, hard=True):
             response = compute_response(input_word, target)
         guesses.append(input_word)
         if VERBOSE: print("Oracle response:", response)
-        # compute remaining words
-        sols = search(encode(input_word), response, sols)
-        nonsols = search(encode(input_word), response, nonsols)
-        if VERBOSE: print("After the oracle response, the solution space was restricted to", len(sols), "solutions and", len(nonsols), "non solutions")
-        if len(sols) == 0:
+        if response == "🔥🔥🔥🔥🔥": #the space was not 1 but we got lucky
+            if VERBOSE: print(f"YES! You got in in {i} attempts!")
+            return True, i
+
+        # compute valid words after oracle feedback
+        valid_sols = decode(search(encode(input_word), response, encode(valid_sols)))
+        
+        if hard: #restrict the valid inputs to those compatible with feedback..
+            valid_inputs = decode(search(encode(input_word), response, encode(valid_inputs)))
+        else: # only remove the guess
+            valid_inputs -= set(guesses)
+
+        if VERBOSE: print("After the oracle response, the solution space was restricted to", len(valid_sols), "solutions and", len(valid_inputs), "valid inputs")
+        if len(valid_sols) == 0:
             if VERBOSE: print("Whelp, no remaining solutions in my solution list that are consistent with the input constraints!")
             return False, i
-        if len(sols) == 1:
-            sol = decode(sols)[0]
+        if len(valid_sols) == 1:
+            sol = valid_sols[0]
             if VERBOSE: print("Only ONE SOLUTION REMAINING! This should be it:", sol)
             if target is not None:
                 if target == sol:
@@ -119,7 +124,7 @@ def iterate(initial="soare", target=None, hard=True):
                 else:
                     if VERBOSE: print(f"Something wrong happened! Didn't find the solution {target} in {i+1} attempts")
                     return False, i+1
-                return
+            return
     if target is not None:
         if VERBOSE: print(f"Boo! Couldn't find the solution {target} in {i} attempts")
         return False, i
@@ -136,7 +141,7 @@ def get_score(word, solutions_np):
                 cache[word,response]  = len(search(encode(word), response, solutions_np))
             outcomes.append(cache[word,response])
 
-    nonsolution = word not in SOLUTIONS
+    nonsolution = word not in decode(solutions_np)
     mean = np.mean(outcomes) #average case
     worst = np.max(outcomes) #worst case
     return mean, worst, nonsolution, word
@@ -185,16 +190,20 @@ def generate_rankings():
     rankings = rank_next_word()
     json.dump(rankings, "rankings.json")
 
-def generate_results(init=None):
+def generate_results(init=None, criterion="min", hard=False, extra=False):
 
     if not init:
         rankings = json.load(open("rankings.json"))
-        init = min(rankings)[2]
-
+        if extra:
+            init = min(rankings)[-1]
+        else:
+            init = min(x for x in rankings if x[-1] in SOLUTIONS)[-1]
+    
+    extra_inputs = NONSOLUTIONS if extra else set()
     results = []
     for t in tqdm(SOLUTIONS):
-        ret, it = run.iterate(init, t, hard=False)
+        ret, it = iterate(init, t, hard=hard, criterion=criterion, extra_inputs=extra_inputs)
         results.append((t,ret,it))
         avg, worst = sum(x[2] for x in results)/len(results), max(x[2] for x in results)
         print(f"Last: {it}, avg steps: {avg}, worst: {worst}")
-    json.dump(results, "results.json")
+    json.dump(results, open(f"results_{init}_{criterion}_{hard}_{extra}.json".lower(),"w"))
