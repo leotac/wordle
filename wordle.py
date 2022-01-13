@@ -217,3 +217,23 @@ def generate_results(init=None, criterion="avg", hard=False, extra=False):
     mode = "hard" if hard else "easy"
     extra = "extra" if extra else "none"
     json.dump(results, open(f"results_{init}_{criterion}_{mode}_{extra}.json".lower(),"w"))
+
+
+""" PLOT
+fig, axes = plt.subplots(1,3, sharex=True,sharey=True, figsize=(12,4)); axes = axes.flatten()
+for i,f in enumerate(["./results_roate_avg_hard_extra.json", "./results_raise_avg_hard_none.json", "./results_none_random_hard_none.json"]):
+    results = json.load(open(f))
+    c = Counter([x[2] for x in results])
+    axes[i].bar(c.keys(),c.values())
+    avg = np.mean([x[2] for x in results])
+    z = f.split("_")
+    if z[1] == "roate":
+        h = "1-step lookahed, all vocabulary"
+    elif z[1] == "raise":
+        h = "1-step lookahead, solutions only"
+    else:
+        h = "random, solutions only"
+    title = f"{h}\nhard mode ({avg:.2f})"
+    axes[i].set_title(title)
+plt.savefig("wordle_hard+rand.png", bbox_inches="tight", pad_inches=0.1)
+"""
