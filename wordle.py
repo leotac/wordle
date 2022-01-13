@@ -3,6 +3,7 @@ import numpy as np
 from tqdm import tqdm
 from tqdm.contrib.concurrent import process_map
 import json
+import random
 
 SOLUTIONS = set([w.strip('"') for w in open("solutions.txt").read().replace(" ","").split(",")])
 NONSOLUTIONS = set([w.strip('"') for w in open("nonsolutions.txt").read().replace(" ","").split(",")])
@@ -63,9 +64,11 @@ def compute_response(word, target):
             response[i] = "💩"
     return "".join(response)
    
-def iterate(initial="soare", target=None, hard=True, criterion = "avg", extra_inputs=NONSOLUTIONS):
+def iterate(initial=None, target=None, hard=True, criterion = "avg", extra_inputs=NONSOLUTIONS):
     valid_sols = SOLUTIONS
     valid_inputs = SOLUTIONS | extra_inputs
+    if not initial:
+        initial = random.choice(list(valid_inputs))
 
     guesses = []
     if VERBOSE: print("Starting with:", initial)
@@ -80,6 +83,8 @@ def iterate(initial="soare", target=None, hard=True, criterion = "avg", extra_in
                 ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1), x[1], x[2]))
             elif criterion == "worst":
                 ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (x[1], x[0], x[2]))
+            elif criterion == "random":
+                ranked = [(random.random(), w) for w in valid_inputs]
             best = min(ranked)
             if VERBOSE: print("Best overall ranked word:", best, "with criterion", criterion)
             #Print 'em all
@@ -192,20 +197,22 @@ def generate_rankings():
 
 def generate_results(init=None, criterion="avg", hard=False, extra=False):
 
-    if not init:
-        rankings = json.load(open("rankings.json"))
-        if extra:
-            init = min(rankings)[-1]
-        else:
-            init = min(x for x in rankings if x[-1] in SOLUTIONS)[-1]
+    random.seed(42)
+    
+#    if not init:
+#        rankings = json.load(open("rankings.json"))
+#        if extra:
+#            init = min(rankings)[-1]
+#        else:
+#            init = min(x for x in rankings if x[-1] in SOLUTIONS)[-1]
     
     extra_inputs = NONSOLUTIONS if extra else set()
     results = []
     for t in tqdm(SOLUTIONS):
-        ret, it = iterate(init, t, hard=hard, criterion=criterion, extra_inputs=extra_inputs)
+        ret, it = iterate(initial=init, target=t, hard=hard, criterion=criterion, extra_inputs=extra_inputs)
         results.append((t,ret,it))
         avg, worst = sum(x[2] for x in results)/len(results), max(x[2] for x in results)
-        print(f"Last: {it}, avg steps: {avg}, worst: {worst}")
+        #print(f"Last: {it}, avg steps: {avg}, worst: {worst}")
     
     mode = "hard" if hard else "easy"
     extra = "extra" if extra else "none"
