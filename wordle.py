@@ -63,7 +63,7 @@ def compute_response(word, target):
             response[i] = "💩"
     return "".join(response)
    
-def iterate(initial="soare", target=None, hard=True, criterion = "min", extra_inputs=NONSOLUTIONS):
+def iterate(initial="soare", target=None, hard=True, criterion = "avg", extra_inputs=NONSOLUTIONS):
     valid_sols = SOLUTIONS
     valid_inputs = SOLUTIONS | extra_inputs
 
@@ -74,7 +74,7 @@ def iterate(initial="soare", target=None, hard=True, criterion = "min", extra_in
         if i > 1:
             #valid_sols = decode(sols)
             # Rank by (lexic): smallest mean, smallest worst-case, is a solution
-            if criterion == "min":
+            if criterion == "avg":
                 ranked = sorted(x for x in rank_next_word(valid_sols, valid_inputs) if x[0] > 0)
             elif criterion == "one":
                 ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1), x[1], x[2]))
@@ -190,7 +190,7 @@ def generate_rankings():
     rankings = rank_next_word()
     json.dump(rankings, "rankings.json")
 
-def generate_results(init=None, criterion="min", hard=False, extra=False):
+def generate_results(init=None, criterion="avg", hard=False, extra=False):
 
     if not init:
         rankings = json.load(open("rankings.json"))
@@ -206,4 +206,7 @@ def generate_results(init=None, criterion="min", hard=False, extra=False):
         results.append((t,ret,it))
         avg, worst = sum(x[2] for x in results)/len(results), max(x[2] for x in results)
         print(f"Last: {it}, avg steps: {avg}, worst: {worst}")
-    json.dump(results, open(f"results_{init}_{criterion}_{hard}_{extra}.json".lower(),"w"))
+    
+    mode = "hard" if hard else "easy"
+    extra = "extra" if extra else "none"
+    json.dump(results, open(f"results_{init}_{criterion}_{mode}_{extra}.json".lower(),"w"))
