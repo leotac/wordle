@@ -216,7 +216,7 @@ def generate_results(init=None, criterion="avg", hard=False, extra=False):
         ret, it = iterate(initial=init, target=t, hard=hard, criterion=criterion, extra_inputs=extra_inputs)
         results.append((t,ret,it))
         avg, worst = sum(x[2] for x in results)/len(results), max(x[2] for x in results)
-        #print(f"Last: {it}, avg steps: {avg}, worst: {worst}")
+        print(f"Last: {it}, avg steps: {avg}, worst: {worst}")
     
     mode = "hard" if hard else "easy"
     extra = "extra" if extra else "none"
