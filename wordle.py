@@ -76,13 +76,15 @@ def iterate(initial=None, target=None, hard=True, criterion = "avg", extra_input
         if VERBOSE: print("Iteration:", i)
         if i > 1:
             #valid_sols = decode(sols)
-            # Rank by (lexic): smallest mean, smallest worst-case, is a solution
+            # Rank by (lexic): smallest mean, smallest worst-case, median, 3) is a solution
             if criterion == "avg":
                 ranked = sorted(x for x in rank_next_word(valid_sols, valid_inputs) if x[0] > 0)
+            elif criterion == "median":
+                ranked = sorted((x for x in rank_next_word(valid_sols, valid_inputs) if x[2] > 0), key=lambda x: (x[2],x[0],x[1],x[3]))
             elif criterion == "one":
-                ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1), x[1], x[2]))
+                ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (abs(x[0]-1), x[1], x[3]))
             elif criterion == "worst":
-                ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (x[1], x[0], x[2]))
+                ranked = sorted(rank_next_word(valid_sols, valid_inputs), key=lambda x: (x[1], x[0], x[3]))
             elif criterion == "random":
                 ranked = [(random.random(), w) for w in valid_inputs]
             best = min(ranked)
@@ -149,7 +151,9 @@ def get_score(word, solutions_np):
     nonsolution = word not in decode(solutions_np)
     mean = np.mean(outcomes) #average case
     worst = np.max(outcomes) #worst case
-    return mean, worst, nonsolution, word
+    median = np.median(outcomes) #median case
+    #TODO how to handle 0s? if I have a solution with: 0,0,0,0,0,1 and one with 1,1,1,1 the second is better?
+    return mean, worst, median, nonsolution, word
 
 def rank_next_word(solutions=SOLUTIONS, inputs=NONSOLUTIONS|SOLUTIONS):
     """ Compute a ranking of all possible remaining words, as the average size of search space
